@@ -1,0 +1,60 @@
+@inject SessionState Session
+@implements IDisposable
+@inherits LayoutComponentBase
+
+<div class="mesh-bg relative min-h-screen">
+    <div class="app-shell">
+        <aside class="shell-sidebar">
+            <NavMenu />
+        </aside>
+
+        <main class="shell-main">
+            <header class="shell-topbar rise-in">
+                <div>
+                    <p class="shell-kicker">Operations Control</p>
+                    <p class="shell-title">ShiftSync Workspace</p>
+                </div>
+
+                @if (Session.IsAuthenticated)
+                {
+                    <div class="shell-user">
+                        <span class="material-symbols-outlined text-base text-slate-500">person</span>
+                        <span class="font-semibold text-slate-800">@Session.CurrentUser!.FullName</span>
+                        <span class="role-pill @(Session.IsAdmin ? "admin" : "employee")">@Session.CurrentUser.Role</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="shell-user">
+                        <span class="material-symbols-outlined text-base text-slate-500">person_off</span>
+                        <span class="font-semibold text-slate-700">Guest Mode</span>
+                    </div>
+                }
+            </header>
+
+            <article class="content-panel fade-in">
+                @Body
+            </article>
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">x</span>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.Changed += HandleSessionChanged;
+    }
+
+    private void HandleSessionChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= HandleSessionChanged;
+    }
+}

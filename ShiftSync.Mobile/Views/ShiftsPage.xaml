@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ShiftSync.Mobile.Views.ShiftsPage"
+             Title="My Shifts">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="10">
+            <Label Text="My Shifts" FontSize="24" FontAttributes="Bold" />
+
+            <Label Text="{Binding StatusMessage}">
+                <Label.Triggers>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="True">
+                        <Setter Property="TextColor" Value="Red" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="False">
+                        <Setter Property="TextColor" Value="Green" />
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
+            <DatePicker Date="{Binding WeekStartDate}" />
+            <Button Text="Load Shifts" Command="{Binding LoadCommand}" />
+
+            <Label Text="{Binding TotalHours, StringFormat='Total Hours: {0}'}" FontAttributes="Bold" />
+
+            <CollectionView ItemsSource="{Binding Shifts}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="10" Margin="0,4">
+                            <VerticalStackLayout>
+                                <Label Text="{Binding ShiftDate, StringFormat='Date: {0:yyyy-MM-dd}'}" FontAttributes="Bold" />
+                                <Label Text="{Binding RoleName, StringFormat='Role: {0}'}" />
+                                <Label Text="{Binding StartTime, StringFormat='Start: {0}'}" />
+                                <Label Text="{Binding EndTime, StringFormat='End: {0}'}" />
+                                <Label Text="{Binding Hours, StringFormat='Hours: {0}'}" />
+                            </VerticalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

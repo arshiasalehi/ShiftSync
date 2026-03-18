@@ -1,0 +1,304 @@
+@page "/admin/schedule"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="glass-card">
+        <h1 class="page-title">Weekly Schedule Builder</h1>
+        <p class="page-subtitle">Build, publish, and refine the weekly floor plan.</p>
+    </div>
+
+    @if (!Session.IsAdmin)
+    {
+        <div class="notice error">Admin access is required.</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="notice @(HasError ? "error" : "success")">@StatusMessage</div>
+        }
+
+        <div class="glass-card space-y-3">
+            <div>
+                <label class="field-label">Week Start Date (Monday)</label>
+                <input class="input-shell max-w-xs" @bind="WeekStartDateText" />
+            </div>
+
+            <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+                <input type="checkbox"
+                       class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                       @bind="CreateAsPublished" />
+                <span>Publish schedule on create</span>
+            </label>
+
+            <div class="flex flex-wrap gap-2">
+                <button class="btn-secondary" @onclick="LoadScheduleAsync" disabled="@IsBusy">Load Schedule</button>
+                <button class="btn-primary" @onclick="CreateScheduleAsync" disabled="@IsBusy">Create Schedule</button>
+            </div>
+        </div>
+
+        @if (CurrentSchedule is null)
+        {
+            <div class="glass-card text-sm text-slate-600">No schedule selected yet for this week.</div>
+        }
+        else
+        {
+            <div class="glass-card space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="font-display text-2xl font-semibold text-slate-900">
+                        Schedule: @CurrentSchedule.WeekStartDate.ToString("yyyy-MM-dd")
+                    </h3>
+                    <span class="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] @(CurrentSchedule.IsPublished ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")">
+                        @(CurrentSchedule.IsPublished ? "Published" : "Draft")
+                    </span>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label class="field-label">Employee</label>
+                        <select class="input-shell" @bind="NewShiftEmployeeId">
+                            <option value="0">Select employee</option>
+                            @foreach (var employee in Employees)
+                            {
+                                <option value="@employee.Id">@employee.FullName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="field-label">Role</label>
+                        <select class="input-shell" @bind="NewShiftRoleId">
+                            <option value="0">Select role</option>
+                            @foreach (var role in RoleTypes)
+                            {
+                                <option value="@role.Id">@role.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-3">
+                    <div>
+                        <label class="field-label">Shift Date</label>
+                        <input class="input-shell" @bind="NewShiftDateText" />
+                    </div>
+                    <div>
+                        <label class="field-label">Start Time</label>
+                        <input class="input-shell" @bind="NewShiftStartTime" />
+                    </div>
+                    <div>
+                        <label class="field-label">End Time</label>
+                        <input class="input-shell" @bind="NewShiftEndTime" />
+                    </div>
+                </div>
+
+                <button class="btn-primary" @onclick="CreateShiftAsync" disabled="@IsBusy">Add Shift</button>
+            </div>
+
+            <div class="glass-card space-y-3">
+                <h3 class="font-display text-2xl font-semibold text-slate-900">Assigned Shifts</h3>
+                @if (CurrentSchedule.Shifts.Count == 0)
+                {
+                    <p class="text-sm text-slate-600">No shifts yet.</p>
+                }
+                else
+                {
+                    <div class="table-shell">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Employee</th>
+                                    <th>Role</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var shift in CurrentSchedule.Shifts.OrderBy(x => x.ShiftDate).ThenBy(x => x.StartTime))
+                                {
+                                    <tr>
+                                        <td>@shift.ShiftDate.ToString("yyyy-MM-dd")</td>
+                                        <td>@shift.EmployeeName</td>
+                                        <td>@shift.RoleName</td>
+                                        <td>@shift.StartTime</td>
+                                        <td>@shift.EndTime</td>
+                                        <td>@shift.Hours</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private List<EmployeeDto> Employees { get; set; } = [];
+    private List<RoleTypeDto> RoleTypes { get; set; } = [];
+    private WeeklyScheduleDto? CurrentSchedule { get; set; }
+
+    private bool IsBusy { get; set; }
+    private bool HasError { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+
+    private DateTime SelectedWeekStart { get; set; } = NormalizeWeekStart(DateTime.Today);
+    private bool CreateAsPublished { get; set; }
+
+    private int NewShiftEmployeeId { get; set; }
+    private int NewShiftRoleId { get; set; }
+    private DateTime NewShiftDate { get; set; } = NormalizeWeekStart(DateTime.Today);
+    private string NewShiftStartTime { get; set; } = "09:00";
+    private string NewShiftEndTime { get; set; } = "13:00";
+
+    private string WeekStartDateText
+    {
+        get => SelectedWeekStart.ToString("yyyy-MM-dd");
+        set
+        {
+            if (DateTime.TryParse(value, out var date))
+            {
+                SelectedWeekStart = NormalizeWeekStart(date);
+                NewShiftDate = SelectedWeekStart;
+            }
+        }
+    }
+
+    private string NewShiftDateText
+    {
+        get => NewShiftDate.ToString("yyyy-MM-dd");
+        set
+        {
+            if (DateTime.TryParse(value, out var date))
+            {
+                NewShiftDate = date.Date;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAdmin)
+        {
+            return;
+        }
+
+        await ExecuteAsync(async () =>
+        {
+            Employees = await ApiClient.GetEmployeesAsync();
+            RoleTypes = await ApiClient.GetRoleTypesAsync();
+            await TryLoadScheduleAsync();
+        });
+    }
+
+    private async Task CreateScheduleAsync()
+    {
+        await ExecuteAsync(async () =>
+        {
+            CurrentSchedule = await ApiClient.CreateScheduleAsync(new CreateScheduleRequest
+            {
+                WeekStartDate = SelectedWeekStart,
+                IsPublished = CreateAsPublished
+            });
+
+            NewShiftDate = SelectedWeekStart;
+        }, "Schedule created.");
+    }
+
+    private async Task LoadScheduleAsync()
+    {
+        await ExecuteAsync(TryLoadScheduleAsync);
+    }
+
+    private async Task TryLoadScheduleAsync()
+    {
+        try
+        {
+            CurrentSchedule = await ApiClient.GetScheduleAsync(SelectedWeekStart);
+            StatusMessage = "Schedule loaded.";
+            HasError = false;
+        }
+        catch
+        {
+            CurrentSchedule = null;
+            StatusMessage = "No schedule exists for this week yet.";
+            HasError = false;
+        }
+    }
+
+    private async Task CreateShiftAsync()
+    {
+        if (CurrentSchedule is null)
+        {
+            HasError = true;
+            StatusMessage = "Create or load a schedule first.";
+            return;
+        }
+
+        if (NewShiftEmployeeId == 0 || NewShiftRoleId == 0)
+        {
+            HasError = true;
+            StatusMessage = "Employee and role are required.";
+            return;
+        }
+
+        if (!TimeSpan.TryParse(NewShiftStartTime, out var startTime)
+            || !TimeSpan.TryParse(NewShiftEndTime, out var endTime))
+        {
+            HasError = true;
+            StatusMessage = "Invalid shift time.";
+            return;
+        }
+
+        await ExecuteAsync(async () =>
+        {
+            await ApiClient.CreateShiftAsync(new CreateShiftRequest
+            {
+                WeeklyScheduleId = CurrentSchedule.Id,
+                EmployeeId = NewShiftEmployeeId,
+                RoleTypeId = NewShiftRoleId,
+                ShiftDate = NewShiftDate,
+                StartTime = startTime,
+                EndTime = endTime
+            });
+
+            CurrentSchedule = await ApiClient.GetScheduleAsync(SelectedWeekStart);
+        }, "Shift added.");
+    }
+
+    private async Task ExecuteAsync(Func<Task> action, string? successMessage = null)
+    {
+        IsBusy = true;
+        HasError = false;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            await action();
+            if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                StatusMessage = successMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static DateTime NormalizeWeekStart(DateTime date)
+    {
+        var value = date.Date;
+        var offset = ((int)value.DayOfWeek + 6) % 7;
+        return value.AddDays(-offset);
+    }
+}

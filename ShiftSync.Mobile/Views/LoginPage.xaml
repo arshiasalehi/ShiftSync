@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ShiftSync.Mobile.Views.LoginPage"
+             Title="Login/Register">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="12">
+            <Label Text="ShiftSync"
+                   FontSize="28"
+                   FontAttributes="Bold" />
+
+            <Label Text="{Binding StatusMessage}">
+                <Label.Triggers>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="True">
+                        <Setter Property="TextColor" Value="Red" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="False">
+                        <Setter Property="TextColor" Value="Green" />
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
+            <Label Text="Login" FontAttributes="Bold" FontSize="20" />
+            <Entry Placeholder="Email" Keyboard="Email" Text="{Binding Email}" />
+            <Entry Placeholder="Password" IsPassword="True" Text="{Binding Password}" />
+            <Button Text="Login" Command="{Binding LoginCommand}" />
+
+            <BoxView HeightRequest="1" Color="#cccccc" Margin="0,8" />
+
+            <Label Text="Register Admin" FontAttributes="Bold" FontSize="20" />
+            <Entry Placeholder="Business Name" Text="{Binding AdminBusinessName}" />
+            <Entry Placeholder="Full Name" Text="{Binding AdminFullName}" />
+            <Entry Placeholder="Email" Keyboard="Email" Text="{Binding AdminEmail}" />
+            <Entry Placeholder="Password" IsPassword="True" Text="{Binding AdminPassword}" />
+            <Button Text="Create Admin Account" Command="{Binding RegisterAdminCommand}" />
+
+            <BoxView HeightRequest="1" Color="#cccccc" Margin="0,8" />
+
+            <Button Text="Join Business (Employee)" Command="{Binding GoToJoinBusinessCommand}" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

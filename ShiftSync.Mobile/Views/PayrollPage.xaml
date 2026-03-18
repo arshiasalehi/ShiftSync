@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ShiftSync.Mobile.Views.PayrollPage"
+             Title="Payroll">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="10">
+            <Label Text="Payroll Estimate" FontSize="24" FontAttributes="Bold" />
+
+            <Label Text="{Binding StatusMessage}">
+                <Label.Triggers>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="True">
+                        <Setter Property="TextColor" Value="Red" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="False">
+                        <Setter Property="TextColor" Value="Green" />
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
+            <DatePicker Date="{Binding WeekStartDate}" />
+            <Button Text="Load Payroll" Command="{Binding LoadCommand}" />
+
+            <Frame Padding="12" IsVisible="{Binding HasPayroll}">
+                <VerticalStackLayout>
+                    <Label Text="{Binding Payroll.EmployeeName, StringFormat='Employee: {0}'}" />
+                    <Label Text="{Binding Payroll.WeekStartDate, StringFormat='Week Start: {0:yyyy-MM-dd}'}" />
+                    <Label Text="{Binding Payroll.TotalHours, StringFormat='Total Hours: {0}'}" />
+                    <Label Text="{Binding Payroll.HourlyRate, StringFormat='Hourly Rate: {0:C}'}" />
+                    <Label Text="{Binding Payroll.TotalEstimatedPay, StringFormat='Estimated Pay: {0:C}'}"
+                           FontAttributes="Bold" />
+                </VerticalStackLayout>
+            </Frame>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

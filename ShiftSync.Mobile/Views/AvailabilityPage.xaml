@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ShiftSync.Mobile.Views.AvailabilityPage"
+             x:Name="Page"
+             Title="Availability">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="10">
+            <Label Text="Availability" FontSize="24" FontAttributes="Bold" />
+
+            <Label Text="{Binding StatusMessage}">
+                <Label.Triggers>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="True">
+                        <Setter Property="TextColor" Value="Red" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Label" Binding="{Binding HasError}" Value="False">
+                        <Setter Property="TextColor" Value="Green" />
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
+            <Label Text="Add Slot" FontAttributes="Bold" />
+            <Picker Title="Day" ItemsSource="{Binding DayOptions}" ItemDisplayBinding="{Binding Label}" SelectedItem="{Binding NewDay}" />
+            <Entry Placeholder="Start (HH:mm)" Text="{Binding NewStartTime}" />
+            <Entry Placeholder="End (HH:mm)" Text="{Binding NewEndTime}" />
+            <Button Text="Add Availability" Command="{Binding AddCommand}" />
+
+            <Grid IsVisible="{Binding IsEditing}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Label Grid.Row="0" Text="Edit Slot" FontAttributes="Bold" />
+                <Picker Grid.Row="1" Title="Day" ItemsSource="{Binding DayOptions}" ItemDisplayBinding="{Binding Label}" SelectedItem="{Binding EditDay}" />
+                <HorizontalStackLayout Grid.Row="2" Spacing="8">
+                    <Entry Placeholder="Start" Text="{Binding EditStartTime}" WidthRequest="120" />
+                    <Entry Placeholder="End" Text="{Binding EditEndTime}" WidthRequest="120" />
+                    <Button Text="Save" Command="{Binding SaveEditCommand}" WidthRequest="80" />
+                    <Button Text="Cancel" Command="{Binding CancelEditCommand}" WidthRequest="80" />
+                </HorizontalStackLayout>
+            </Grid>
+
+            <CollectionView ItemsSource="{Binding Slots}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="0,8" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
+                            <Label Grid.Row="0" Grid.ColumnSpan="3"
+                                   Text="{Binding DayOfWeek, StringFormat='Day {0}'}"
+                                   FontAttributes="Bold" />
+                            <Label Grid.Row="1" Grid.Column="0"
+                                   Text="{Binding StartTime, StringFormat='Start: {0}'}" />
+                            <Label Grid.Row="1" Grid.Column="1"
+                                   Text="{Binding EndTime, StringFormat='End: {0}'}" />
+                            <HorizontalStackLayout Grid.Row="1" Grid.Column="2" Spacing="6">
+                                <Button Text="Edit"
+                                        Command="{Binding Source={x:Reference Page}, Path=BindingContext.BeginEditCommand}"
+                                        CommandParameter="{Binding .}" />
+                                <Button Text="Delete"
+                                        Command="{Binding Source={x:Reference Page}, Path=BindingContext.DeleteCommand}"
+                                        CommandParameter="{Binding .}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

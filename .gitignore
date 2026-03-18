@@ -1,0 +1,23 @@
+# Build artifacts
+bin/
+obj/
+
+# User/IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.swp
+*.DS_Store
+
+# Logs and temp
+*.log
+*.tmp
+*.pid
+
+# NuGet
+packages/
+*.nupkg
+
+# OS
+Thumbs.db

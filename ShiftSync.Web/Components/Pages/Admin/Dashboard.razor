@@ -1,0 +1,109 @@
+@page "/admin/dashboard"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="glass-card">
+        <h1 class="page-title">Admin Dashboard</h1>
+        <p class="page-subtitle">Your weekly staffing snapshot in one place.</p>
+    </div>
+
+    @if (!Session.IsAdmin)
+    {
+        <div class="notice error">Admin access is required.</div>
+    }
+    else if (IsLoading)
+    {
+        <div class="glass-card text-sm text-slate-600">Loading dashboard metrics...</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="notice error">@ErrorMessage</div>
+        }
+
+        <div class="metric-grid md:grid-cols-2 xl:grid-cols-4">
+            <div class="metric-card">
+                <p class="metric-label">Employees</p>
+                <p class="metric-value">@EmployeeCount</p>
+                <p class="page-subtitle">Active employee profiles</p>
+            </div>
+
+            <div class="metric-card">
+                <p class="metric-label">Shift Count</p>
+                <p class="metric-value">@ShiftCount</p>
+                <p class="page-subtitle">Assigned this week</p>
+            </div>
+
+            <div class="metric-card">
+                <p class="metric-label">Total Hours</p>
+                <p class="metric-value">@TotalHours</p>
+                <p class="page-subtitle">Scheduled hours this week</p>
+            </div>
+
+            <div class="metric-card">
+                <p class="metric-label">Schedule Status</p>
+                <p class="mt-2 stat-pill @(ScheduleStatus == "Published" ? "good" : "warn")">
+                    @ScheduleStatus
+                </p>
+                <p class="page-subtitle mt-2">Current week publication state</p>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    private int EmployeeCount { get; set; }
+    private int ShiftCount { get; set; }
+    private decimal TotalHours { get; set; }
+    private string ScheduleStatus { get; set; } = "No schedule";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAdmin)
+        {
+            IsLoading = false;
+            return;
+        }
+
+        try
+        {
+            var employees = await ApiClient.GetEmployeesAsync();
+            EmployeeCount = employees.Count;
+
+            var currentWeek = NormalizeWeekStart(DateTime.Today);
+            try
+            {
+                var schedule = await ApiClient.GetScheduleAsync(currentWeek);
+                ShiftCount = schedule.Shifts.Count;
+                TotalHours = schedule.Shifts.Sum(x => x.Hours);
+                ScheduleStatus = schedule.IsPublished ? "Published" : "Draft";
+            }
+            catch
+            {
+                ShiftCount = 0;
+                TotalHours = 0;
+                ScheduleStatus = "No schedule";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private static DateTime NormalizeWeekStart(DateTime date)
+    {
+        var value = date.Date;
+        var offset = ((int)value.DayOfWeek + 6) % 7;
+        return value.AddDays(-offset);
+    }
+}

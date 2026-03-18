@@ -1,0 +1,223 @@
+@page "/employee/availability"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="glass-card">
+        <h1 class="page-title">My Availability</h1>
+        <p class="page-subtitle">Set when you can work so scheduling stays conflict-free.</p>
+    </div>
+
+    @if (!Session.IsEmployee)
+    {
+        <div class="notice error">Employee access is required.</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="notice @(HasError ? "error" : "success")">@StatusMessage</div>
+        }
+
+        <div class="glass-card space-y-3">
+            <h3 class="font-display text-xl font-semibold text-slate-900">Add Availability Slot</h3>
+
+            <div class="grid gap-3 md:grid-cols-3">
+                <div>
+                    <label class="field-label">Day</label>
+                    <select class="input-shell" @bind="NewSlot.DayOfWeek">
+                        @for (var day = 0; day <= 6; day++)
+                        {
+                            <option value="@day">@((DayOfWeek)day)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Start</label>
+                    <input class="input-shell" @bind="NewStartText" />
+                </div>
+                <div>
+                    <label class="field-label">End</label>
+                    <input class="input-shell" @bind="NewEndText" />
+                </div>
+            </div>
+
+            <button class="btn-primary" @onclick="AddAsync" disabled="@IsBusy">Add Slot</button>
+        </div>
+
+        <div class="glass-card space-y-3">
+            <h3 class="font-display text-xl font-semibold text-slate-900">Existing Slots</h3>
+
+            @if (Slots.Count == 0)
+            {
+                <p class="text-sm text-slate-600">No slots saved yet.</p>
+            }
+            else
+            {
+                <div class="table-shell">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var slot in Slots.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime))
+                            {
+                                var edit = EditableSlots[slot.Id];
+                                <tr>
+                                    <td>
+                                        <select class="input-shell" @bind="edit.DayOfWeek">
+                                            @for (var day = 0; day <= 6; day++)
+                                            {
+                                                <option value="@day">@((DayOfWeek)day)</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input class="input-shell" @bind="EditStartTimes[slot.Id]" />
+                                    </td>
+                                    <td>
+                                        <input class="input-shell" @bind="EditEndTimes[slot.Id]" />
+                                    </td>
+                                    <td>
+                                        <div class="flex gap-2">
+                                            <button class="btn-secondary" @onclick="() => UpdateAsync(slot.Id)" disabled="@IsBusy">Save</button>
+                                            <button class="btn-danger" @onclick="() => DeleteAsync(slot.Id)" disabled="@IsBusy">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<AvailabilityDto> Slots { get; set; } = [];
+    private UpsertAvailabilityRequest NewSlot { get; } = new();
+
+    private Dictionary<int, UpsertAvailabilityRequest> EditableSlots { get; } = new();
+    private Dictionary<int, string> EditStartTimes { get; } = new();
+    private Dictionary<int, string> EditEndTimes { get; } = new();
+
+    private string NewStartText { get; set; } = "09:00";
+    private string NewEndText { get; set; } = "13:00";
+
+    private bool IsBusy { get; set; }
+    private bool HasError { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsEmployee)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        await ExecuteAsync(async () =>
+        {
+            Slots = await ApiClient.GetMyAvailabilityAsync();
+            EditableSlots.Clear();
+            EditStartTimes.Clear();
+            EditEndTimes.Clear();
+
+            foreach (var slot in Slots)
+            {
+                EditableSlots[slot.Id] = new UpsertAvailabilityRequest
+                {
+                    DayOfWeek = slot.DayOfWeek,
+                    StartTime = slot.StartTime,
+                    EndTime = slot.EndTime
+                };
+                EditStartTimes[slot.Id] = slot.StartTime.ToString(@"hh\:mm");
+                EditEndTimes[slot.Id] = slot.EndTime.ToString(@"hh\:mm");
+            }
+        });
+    }
+
+    private async Task AddAsync()
+    {
+        if (!TimeSpan.TryParse(NewStartText, out var start)
+            || !TimeSpan.TryParse(NewEndText, out var end))
+        {
+            HasError = true;
+            StatusMessage = "Invalid start or end time.";
+            return;
+        }
+
+        await ExecuteAsync(async () =>
+        {
+            NewSlot.StartTime = start;
+            NewSlot.EndTime = end;
+
+            await ApiClient.AddMyAvailabilityAsync(NewSlot);
+            await LoadAsync();
+        }, "Availability slot added.");
+    }
+
+    private async Task UpdateAsync(int availabilityId)
+    {
+        var request = EditableSlots[availabilityId];
+
+        if (!TimeSpan.TryParse(EditStartTimes[availabilityId], out var start)
+            || !TimeSpan.TryParse(EditEndTimes[availabilityId], out var end))
+        {
+            HasError = true;
+            StatusMessage = "Invalid start or end time.";
+            return;
+        }
+
+        request.StartTime = start;
+        request.EndTime = end;
+
+        await ExecuteAsync(async () =>
+        {
+            await ApiClient.UpdateMyAvailabilityAsync(availabilityId, request);
+            await LoadAsync();
+        }, "Availability slot updated.");
+    }
+
+    private async Task DeleteAsync(int availabilityId)
+    {
+        await ExecuteAsync(async () =>
+        {
+            await ApiClient.DeleteMyAvailabilityAsync(availabilityId);
+            await LoadAsync();
+        }, "Availability slot deleted.");
+    }
+
+    private async Task ExecuteAsync(Func<Task> action, string? successMessage = null)
+    {
+        IsBusy = true;
+        HasError = false;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            await action();
+            if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                StatusMessage = successMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}

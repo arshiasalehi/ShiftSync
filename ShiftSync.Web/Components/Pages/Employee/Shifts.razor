@@ -1,0 +1,128 @@
+@page "/employee/shifts"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="glass-card">
+        <h1 class="page-title">My Shifts</h1>
+        <p class="page-subtitle">See exactly where and when you're scheduled.</p>
+    </div>
+
+    @if (!Session.IsEmployee)
+    {
+        <div class="notice error">Employee access is required.</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="notice @(HasError ? "error" : "success")">@StatusMessage</div>
+        }
+
+        <div class="glass-card space-y-3">
+            <div>
+                <label class="field-label">Week Start Date</label>
+                <input class="input-shell max-w-xs" @bind="WeekStartDateText" />
+            </div>
+            <button class="btn-secondary" @onclick="LoadAsync" disabled="@IsBusy">Load Shifts</button>
+        </div>
+
+        <div class="glass-card space-y-3">
+            @if (IsBusy)
+            {
+                <p class="text-sm text-slate-600">Loading shifts...</p>
+            }
+            else if (ShiftRows.Count == 0)
+            {
+                <p class="text-sm text-slate-600">No shifts found for this week.</p>
+            }
+            else
+            {
+                <div class="table-shell">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Role</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var shift in ShiftRows.OrderBy(x => x.ShiftDate).ThenBy(x => x.StartTime))
+                            {
+                                <tr>
+                                    <td>@shift.ShiftDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@shift.RoleName</td>
+                                    <td>@shift.StartTime</td>
+                                    <td>@shift.EndTime</td>
+                                    <td class="font-semibold text-slate-900">@shift.Hours</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<ShiftDto> ShiftRows { get; set; } = [];
+    private bool IsBusy { get; set; }
+    private bool HasError { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+
+    private DateTime WeekStartDate { get; set; } = NormalizeWeekStart(DateTime.Today);
+
+    private string WeekStartDateText
+    {
+        get => WeekStartDate.ToString("yyyy-MM-dd");
+        set
+        {
+            if (DateTime.TryParse(value, out var date))
+            {
+                WeekStartDate = NormalizeWeekStart(date);
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsEmployee)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        IsBusy = true;
+        HasError = false;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            ShiftRows = await ApiClient.GetMyShiftsAsync(WeekStartDate);
+            StatusMessage = "Shifts loaded.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = ex.Message;
+            ShiftRows.Clear();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static DateTime NormalizeWeekStart(DateTime date)
+    {
+        var value = date.Date;
+        var offset = ((int)value.DayOfWeek + 6) % 7;
+        return value.AddDays(-offset);
+    }
+}

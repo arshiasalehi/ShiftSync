@@ -1,0 +1,18 @@
+@page "/logout"
+@inject SessionState Session
+@inject NavigationManager Navigation
+
+<section class="page-stack rise-in">
+    <div class="glass-card max-w-xl">
+        <h1 class="page-title text-xl">Logging Out</h1>
+        <p class="page-subtitle">Ending current session and returning to the home screen.</p>
+    </div>
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.Logout();
+        Navigation.NavigateTo("/", true);
+    }
+}

@@ -1,0 +1,9 @@
+@ShiftSync_Api_HostAddress = http://localhost:5008
+
+POST {{ShiftSync_Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@sunset.local",
+  "password": "Admin123!"
+}

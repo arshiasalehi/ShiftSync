@@ -1,0 +1,194 @@
+@page "/admin/employees"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="glass-card flex-1">
+            <h1 class="page-title">Employees</h1>
+            <p class="page-subtitle">Manage pay settings, hour caps, and role permissions.</p>
+        </div>
+        <button class="btn-secondary shrink-0" @onclick="LoadAsync" disabled="@IsBusy">Refresh</button>
+    </div>
+
+    @if (!Session.IsAdmin)
+    {
+        <div class="notice error">Admin access is required.</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="notice @(HasError ? "error" : "success")">@StatusMessage</div>
+        }
+
+        @if (IsBusy)
+        {
+            <div class="glass-card text-sm text-slate-600">Loading employee data...</div>
+        }
+        else
+        {
+            @foreach (var employee in EmployeeRows)
+            {
+                <div class="glass-card space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-display text-2xl font-semibold text-slate-900">@employee.FullName</h3>
+                            <p class="text-sm text-slate-500">@employee.Email</p>
+                        </div>
+                        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
+                            Employee #@employee.Id
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <div>
+                            <label class="field-label">Hourly Rate</label>
+                            <input class="input-shell" type="number" step="0.01" @bind-value="PayRates[employee.Id]" @bind-value:event="oninput" />
+                        </div>
+                        <div>
+                            <label class="field-label">Max Weekly Hours</label>
+                            <input class="input-shell" type="number" @bind-value="MaxHours[employee.Id]" @bind-value:event="oninput" />
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" @onclick="() => UpdatePayRateAsync(employee.Id)" disabled="@IsBusy">Save Pay Settings</button>
+
+                    <div class="space-y-2">
+                        <p class="field-label mb-0">Role Assignment</p>
+                        <div class="grid gap-2 sm:grid-cols-3">
+                            @foreach (var role in RoleTypes)
+                            {
+                                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+                                    <input type="checkbox"
+                                           class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                           checked="@IsRoleChecked(employee.Id, role.Id)"
+                                           @onchange="@(args => ToggleRole(employee.Id, role.Id, args.Value as bool? ?? false))" />
+                                    <span>@role.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <button class="btn-secondary" @onclick="() => UpdateRolesAsync(employee.Id)" disabled="@IsBusy">Save Roles</button>
+                </div>
+            }
+        }
+    }
+</section>
+
+@code {
+    private List<EmployeeDto> EmployeeRows { get; set; } = [];
+    private List<RoleTypeDto> RoleTypes { get; set; } = [];
+
+    private Dictionary<int, decimal> PayRates { get; } = new();
+    private Dictionary<int, int> MaxHours { get; } = new();
+    private Dictionary<int, HashSet<int>> SelectedRoles { get; } = new();
+
+    private bool IsBusy { get; set; }
+    private bool HasError { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAdmin)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        await ExecuteAsync(async () =>
+        {
+            EmployeeRows = await ApiClient.GetEmployeesAsync();
+            RoleTypes = await ApiClient.GetRoleTypesAsync();
+
+            PayRates.Clear();
+            MaxHours.Clear();
+            SelectedRoles.Clear();
+
+            foreach (var employee in EmployeeRows)
+            {
+                PayRates[employee.Id] = employee.HourlyRate;
+                MaxHours[employee.Id] = employee.MaxWeeklyHours;
+                SelectedRoles[employee.Id] = employee.Roles.Select(x => x.Id).ToHashSet();
+            }
+        }, "Employee list refreshed.");
+    }
+
+    private async Task UpdatePayRateAsync(int employeeId)
+    {
+        await ExecuteAsync(async () =>
+        {
+            var request = new UpdatePayRateRequest
+            {
+                HourlyRate = PayRates[employeeId],
+                MaxWeeklyHours = MaxHours[employeeId]
+            };
+
+            await ApiClient.UpdatePayRateAsync(employeeId, request);
+            await LoadAsync();
+        }, "Pay settings saved.");
+    }
+
+    private async Task UpdateRolesAsync(int employeeId)
+    {
+        await ExecuteAsync(async () =>
+        {
+            var request = new UpdateEmployeeRolesRequest
+            {
+                RoleTypeIds = SelectedRoles[employeeId].ToList()
+            };
+
+            await ApiClient.UpdateRolesAsync(employeeId, request);
+            await LoadAsync();
+        }, "Roles updated.");
+    }
+
+    private bool IsRoleChecked(int employeeId, int roleTypeId)
+        => SelectedRoles.TryGetValue(employeeId, out var selected) && selected.Contains(roleTypeId);
+
+    private void ToggleRole(int employeeId, int roleTypeId, bool isChecked)
+    {
+        if (!SelectedRoles.TryGetValue(employeeId, out var selected))
+        {
+            selected = [];
+            SelectedRoles[employeeId] = selected;
+        }
+
+        if (isChecked)
+        {
+            selected.Add(roleTypeId);
+        }
+        else
+        {
+            selected.Remove(roleTypeId);
+        }
+    }
+
+    private async Task ExecuteAsync(Func<Task> action, string? successMessage = null)
+    {
+        IsBusy = true;
+        HasError = false;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            await action();
+            if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                StatusMessage = successMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}

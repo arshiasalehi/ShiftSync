@@ -1,0 +1,109 @@
+@inject SessionState Session
+@implements IDisposable
+
+<div class="nav-card rise-in">
+    <div class="brand-wrap">
+        <span class="brand-badge">
+            <span class="material-symbols-outlined">restaurant</span>
+        </span>
+        <div>
+            <p class="brand-name">ShiftSync</p>
+            <p class="brand-sub">Culinary Architect</p>
+        </div>
+    </div>
+
+    @if (Session.IsAuthenticated)
+    {
+        <div class="user-chip">
+            <p class="name">@Session.CurrentUser!.FullName</p>
+            <p>@Session.CurrentUser.Email</p>
+            <span class="role @(Session.IsAdmin ? "admin" : "employee")">@Session.CurrentUser.Role</span>
+            @if (!string.IsNullOrWhiteSpace(Session.CurrentUser.CompanyCode))
+            {
+                <p>Code: <strong>@Session.CurrentUser.CompanyCode</strong></p>
+            }
+        </div>
+    }
+
+    <nav>
+        <NavLink class="menu-link" href="/" Match="NavLinkMatch.All">
+            <span class="material-symbols-outlined">home</span>
+            <span>Home</span>
+        </NavLink>
+
+        @if (!Session.IsAuthenticated)
+        {
+            <NavLink class="menu-link" href="/auth">
+                <span class="material-symbols-outlined">login</span>
+                <span>Login / Register</span>
+            </NavLink>
+        }
+
+        @if (Session.IsAdmin)
+        {
+            <p class="menu-group">Admin</p>
+
+            <NavLink class="menu-link" href="/admin/dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span>Dashboard</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/admin/employees">
+                <span class="material-symbols-outlined">groups</span>
+                <span>Employees</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/admin/availability">
+                <span class="material-symbols-outlined">event_available</span>
+                <span>Availability</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/admin/schedule">
+                <span class="material-symbols-outlined">calendar_month</span>
+                <span>Schedule Builder</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/admin/payroll">
+                <span class="material-symbols-outlined">payments</span>
+                <span>Payroll</span>
+            </NavLink>
+        }
+
+        @if (Session.IsEmployee)
+        {
+            <p class="menu-group">Employee</p>
+
+            <NavLink class="menu-link" href="/employee/shifts">
+                <span class="material-symbols-outlined">calendar_today</span>
+                <span>My Shifts</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/employee/availability">
+                <span class="material-symbols-outlined">pending_actions</span>
+                <span>My Availability</span>
+            </NavLink>
+            <NavLink class="menu-link" href="/employee/payroll">
+                <span class="material-symbols-outlined">account_balance_wallet</span>
+                <span>Payroll Estimate</span>
+            </NavLink>
+        }
+
+        @if (Session.IsAuthenticated)
+        {
+            <p class="menu-group">Session</p>
+            <NavLink class="menu-link" href="/logout">
+                <span class="material-symbols-outlined">logout</span>
+                <span>Logout</span>
+            </NavLink>
+        }
+    </nav>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.Changed += HandleSessionChanged;
+    }
+
+    private void HandleSessionChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= HandleSessionChanged;
+    }
+}

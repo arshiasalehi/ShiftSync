@@ -1,0 +1,168 @@
+@page "/admin/payroll"
+@inject SessionState Session
+@inject ApiClient ApiClient
+
+<section class="page-stack rise-in">
+    <div class="glass-card">
+        <h1 class="page-title">Payroll Overview</h1>
+        <p class="page-subtitle">Estimated payroll based on published schedules only.</p>
+    </div>
+
+    @if (!Session.IsAdmin)
+    {
+        <div class="notice error">Admin access is required.</div>
+    }
+    else
+    {
+        if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="notice @(HasError ? "error" : "success")">@StatusMessage</div>
+        }
+
+        <div class="glass-card space-y-3">
+            <div>
+                <label class="field-label">Week Start Date</label>
+                <input class="input-shell max-w-xs" @bind="WeekStartDateText" />
+            </div>
+            <button class="btn-secondary" @onclick="LoadAsync" disabled="@IsBusy">Load Payroll</button>
+        </div>
+
+        @if (IsBusy)
+        {
+            <div class="glass-card text-sm text-slate-600">Loading payroll...</div>
+        }
+        else if (Rows.Count == 0)
+        {
+            <div class="glass-card text-sm text-slate-600">No payroll data available for this week.</div>
+        }
+        else
+        {
+            <div class="glass-card space-y-4">
+                <div class="table-shell">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Hours</th>
+                                <th>Hourly Rate</th>
+                                <th>Estimated Pay</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Rows.OrderBy(x => x.EmployeeName))
+                            {
+                                <tr>
+                                    <td>@row.EmployeeName</td>
+                                    <td>@row.Hours</td>
+                                    <td>@row.HourlyRate.ToString("C")</td>
+                                    <td class="font-semibold text-slate-900">@row.EstimatedPay.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="value-emphasis">
+                    <p class="text-xs uppercase tracking-[0.12em] text-orange-100">Total Payroll</p>
+                    <p class="mt-1 font-display text-2xl font-semibold">@Rows.Sum(x => x.EstimatedPay).ToString("C")</p>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private List<PayrollRow> Rows { get; set; } = [];
+    private bool IsBusy { get; set; }
+    private bool HasError { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+
+    private DateTime WeekStartDate { get; set; } = NormalizeWeekStart(DateTime.Today);
+
+    private string WeekStartDateText
+    {
+        get => WeekStartDate.ToString("yyyy-MM-dd");
+        set
+        {
+            if (DateTime.TryParse(value, out var date))
+            {
+                WeekStartDate = NormalizeWeekStart(date);
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAdmin)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        IsBusy = true;
+        HasError = false;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            var employees = await ApiClient.GetEmployeesAsync();
+            WeeklyScheduleDto? schedule;
+
+            try
+            {
+                schedule = await ApiClient.GetScheduleAsync(WeekStartDate);
+            }
+            catch
+            {
+                schedule = null;
+            }
+
+            Rows.Clear();
+            var payrollShifts = schedule is { IsPublished: true } ? schedule.Shifts : [];
+
+            foreach (var employee in employees)
+            {
+                var hours = payrollShifts
+                    .Where(x => x.EmployeeId == employee.Id)
+                    .Sum(x => x.Hours);
+
+                Rows.Add(new PayrollRow
+                {
+                    EmployeeName = employee.FullName,
+                    Hours = hours,
+                    HourlyRate = employee.HourlyRate,
+                    EstimatedPay = employee.HourlyRate * hours
+                });
+            }
+
+            StatusMessage = "Payroll loaded.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = ex.Message;
+            Rows.Clear();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static DateTime NormalizeWeekStart(DateTime date)
+    {
+        var value = date.Date;
+        var offset = ((int)value.DayOfWeek + 6) % 7;
+        return value.AddDays(-offset);
+    }
+
+    private sealed class PayrollRow
+    {
+        public string EmployeeName { get; set; } = string.Empty;
+        public decimal Hours { get; set; }
+        public decimal HourlyRate { get; set; }
+        public decimal EstimatedPay { get; set; }
+    }
+}
